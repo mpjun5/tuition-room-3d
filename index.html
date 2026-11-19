@@ -144,13 +144,13 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
    (front/TV wall at -L/2, back/door wall at +L/2), y = up.
    rot is in radians; 0 means the piece faces the front (TV wall).
    ===================================================================== */
-const STORE_KEY = 'tuitionRoom3d.v1';
+const STORE_KEY = 'tuitionRoom3d.v2';
 const DEFAULT_ROOM = {
   w: 3.0, l: 5.5, h: 2.7,           // ASSUMPTION: 2.7 m ceiling
   light: 1.0,                        // ceiling light brightness multiplier
   openings: [
     // wall: front | back | left | right; pos = centre along that wall (x for front/back, z for left/right)
-    { id:'door',      kind:'door',      name:'Door (solid)', wall:'back',  pos:-0.85, width:0.9, height:2.1 },
+    // (no solid back door; a { kind:'door' } entry is still supported if one is ever needed)
     { id:'glassDoor', kind:'glassDoor', name:'Glass door',   wall:'right', pos: 2.15, width:0.9, height:2.1 },
     { id:'window',    kind:'window',    name:'Glass window', wall:'right', pos:-0.35, width:2.6, sill:0.9, height:1.3 },
   ],
@@ -158,7 +158,7 @@ const DEFAULT_ROOM = {
 const DEFAULT_MATERIALS = {
   floor:'#8d9095', floorType:'vinyl', walls:'#f4f4f1', ceiling:'#ffffff',
   tableTop:'#c39a6b', tableLegs:'#f7f7f7', chair:'#8a8f97',
-  deskTop:'#cfa77c', deskFrame:'#f4f4f4', teacherChair:'#2b2e33', fabric:'#5b6b7a',
+  deskTop:'#1c1d20', deskFrame:'#1c1d20', teacherChair:'#2b2e33', fabric:'#5b6b7a', cabinet:'#f4f4f4',
 };
 const MATERIAL_PRESETS = {
   floor:['#8d9095','#b5b8bc','#6b6f75','#c8b59a','#9c7b5b','#d9d6d0'],
@@ -168,7 +168,7 @@ const MATERIAL_PRESETS = {
 };
 function defaultItems(){
   const it = []; let n = 0; const id = () => 'i' + (++n);
-  const rowZ = [-1.05, 0.0, 1.05];          // 3 rows of 2 tables
+  const rowZ = [-0.85, 0.15, 1.15];         // 3 rows of 2 tables
   const tx = 1.5 - 0.6 - 0.02;              // tables against the side walls, centre aisle ~56 cm
   for (const z of rowZ) for (const sx of [-1, 1]) {
     const x = sx * tx;
@@ -177,8 +177,11 @@ function defaultItems(){
     it.push({ id:id(), type:'chair', x:x+0.3, z:z+0.38, rot:0 });
   }
   it.push({ id:id(), type:'tv', x:0, z:-2.75, rot:0, props:{ mountY:1.45 } });
-  it.push({ id:id(), type:'desk', x:-1.18, z:-2.05, rot:Math.PI/2, props:{ height:0.74 } });
-  it.push({ id:id(), type:'teacherChair', x:-0.6, z:-2.05, rot:Math.PI/2 });
+  // Teacher's station at the TV end, near the LEFT long wall (the solid wall; glass is on the right wall).
+  // Desk rotated 180° so the teacher sits between the desk and the TV wall, facing the students.
+  // monX 0.3 = monitor on the teacher's right, which here is the left-wall side.
+  it.push({ id:id(), type:'desk', x:-0.87, z:-1.85, rot:Math.PI, props:{ height:0.74, monX:0.3 } });
+  it.push({ id:id(), type:'teacherChair', x:-0.87, z:-2.38, rot:Math.PI });
   return it;
 }
 function defaultState(){ return { version:1, room:structuredClone(DEFAULT_ROOM), materials:{...DEFAULT_MATERIALS}, items:defaultItems() }; }
@@ -283,7 +286,8 @@ const M = {
   tableTop: std({ map:TEX.wood, roughness:0.55 }),
   tableLegs: std({ roughness:0.4, metalness:0.2 }),
   chair: std({ roughness:0.6 }),
-  deskTop: std({ map:TEX.wood, roughness:0.5 }),
+  deskTop: std({ roughness:0.45 }),
+  cabinet: std({ roughness:0.4, metalness:0.2 }),
   deskFrame: std({ roughness:0.35, metalness:0.25 }),
   teacherChair: std({ roughness:0.5 }),
   fabric: std({ roughness:0.9 }),
@@ -306,7 +310,7 @@ const M = {
   outside: new THREE.MeshBasicMaterial({ color:'#cfe2ee' }),
   outsideFloor: std({ color:'#cfd4da', roughness:1 }),
 };
-const COLOR_KEYS = ['floor','walls','ceiling','tableTop','tableLegs','chair','deskTop','deskFrame','teacherChair','fabric'];
+const COLOR_KEYS = ['floor','walls','ceiling','tableTop','tableLegs','chair','deskTop','deskFrame','teacherChair','fabric','cabinet'];
 function applyMaterials(){
   const m = state.materials;
   for (const k of COLOR_KEYS) M[k].color.set(m[k]);
@@ -357,13 +361,14 @@ const TYPES = {
         const up = Math.max(0.05, H - 0.06 - 0.45); box(0.062, up, 0.045, F, x, 0.45 + up/2, 0, g); // telescoping column
         box(0.06, 0.03, 0.5, F, x, H-0.04, 0, g); }
       box(0.12, 0.022, 0.05, M.black, 0.42, H-0.036, 0.29, g);          // up/down handset
-      // monitor arm + 27" monitor (approx. 61 x 36.5 cm incl. bezel)
-      box(0.06, 0.05, 0.08, M.darkMetal, 0, H+0.01, -0.27, g);
-      cyl(0.018, 0.018, 0.4, M.darkMetal, 0, H+0.2, -0.27, g, 14);
-      const a1 = box(0.035, 0.03, 0.22, M.darkMetal, 0, H+0.33, -0.17, g); a1.rotation.x = -0.12;
-      box(0.1, 0.1, 0.02, M.darkMetal, 0, H+0.36, -0.07, g);
-      box(0.615, 0.365, 0.022, M.black, 0, H+0.36, -0.05, g);
-      const sc = mesh(new THREE.PlaneGeometry(0.598, 0.336), M.monScreen, 0, H+0.365, -0.0385, g); sc.castShadow = false; } },
+      // monitor arm + 27" monitor (approx. 61 x 36.5 cm incl. bezel); monX > 0 = on the sitter's right
+      const mx = P(i,'monX',0.3);
+      box(0.06, 0.05, 0.08, M.darkMetal, mx, H+0.01, -0.27, g);
+      cyl(0.018, 0.018, 0.4, M.darkMetal, mx, H+0.2, -0.27, g, 14);
+      const a1 = box(0.035, 0.03, 0.22, M.darkMetal, mx, H+0.33, -0.17, g); a1.rotation.x = -0.12;
+      box(0.1, 0.1, 0.02, M.darkMetal, mx, H+0.36, -0.07, g);
+      box(0.615, 0.365, 0.022, M.black, mx, H+0.36, -0.05, g);
+      const sc = mesh(new THREE.PlaneGeometry(0.598, 0.336), M.monScreen, mx, H+0.365, -0.0385, g); sc.castShadow = false; } },
   teacherChair: { label:'Teacher chair (Herman Miller style)', icon:'💺', group:'core', colorKey:'teacherChair',
     size: () => [0.68, 0.64, 1.08],
     build(i, g){ const C = itemMat(i,'teacherChair'), MESH = M.chairMesh;
@@ -386,8 +391,8 @@ const TYPES = {
       const r = rnd([...i.id].reduce((a, c) => a + c.charCodeAt(0), 0)); const cols = ['#b91c1c','#1d4ed8','#047857','#a16207','#6d28d9','#374151','#be185d'];
       for (let s = 0; s < 5; s++){ const y = 0.02 + s*0.44; box(0.76, 0.02, 0.29, w, 0, y, 0, g); if (s === 4) break;
         let x = -0.36; while (x < 0.3){ const bw = 0.02 + r()*0.03, bh = 0.22 + r()*0.12; if (r() > 0.15) box(bw, bh, 0.2, std({ color:cols[r()*cols.length|0], roughness:0.8 }), x + bw/2, y + 0.01 + bh/2, -0.02, g); x += bw + 0.003; } } } },
-  cabinet: { label:'Cabinet', icon:'🗄️', group:'extra', colorKey:'deskFrame', size: () => [0.9, 0.45, 0.9],
-    build(i, g){ const c = itemMat(i,'deskFrame'); box(0.9, 0.88, 0.45, c, 0, 0.46, 0, g); box(0.86, 0.02, 0.43, c, 0, 0.01, 0, g);
+  cabinet: { label:'Cabinet', icon:'🗄️', group:'extra', colorKey:'cabinet', size: () => [0.9, 0.45, 0.9],
+    build(i, g){ const c = itemMat(i,'cabinet'); box(0.9, 0.88, 0.45, c, 0, 0.46, 0, g); box(0.86, 0.02, 0.43, c, 0, 0.01, 0, g);
       box(0.004, 0.84, 0.005, M.darkMetal, 0, 0.46, -0.226, g); for (const sx of [-1, 1]) box(0.012, 0.16, 0.02, M.chrome, sx*0.05, 0.6, -0.235, g); } },
   plant: { label:'Plant', icon:'🪴', group:'extra', colorKey:null, size: () => [0.5, 0.5, 1.2],
     build(i, g){ cyl(0.17, 0.13, 0.34, M.pot, 0, 0.17, 0, g, 24); cyl(0.155, 0.155, 0.02, M.soil, 0, 0.33, 0, g, 20); const r = rnd(42);
@@ -452,12 +457,11 @@ function buildRoom(){
 }
 function buildOpening(o, wallG, wi){
   const c = wi.toLocal(o.pos), og = new THREE.Group(); og.position.set(c, 0, 0); wallG.add(og);
-  const fw = 0.05, depth = 0.1, H = o.height, Wd = o.width;
+  const fw = o.kind === 'window' ? 0.02 : 0.05, depth = o.kind === 'window' ? 0.04 : 0.1, H = o.height, Wd = o.width;
   const frameMat = o.kind === 'door' ? M.white : M.alu;
   const b = o.kind === 'window' ? o.sill : 0;
   box(fw, H, depth, frameMat, -Wd/2 + fw/2, b + H/2, 0, og); box(fw, H, depth, frameMat, Wd/2 - fw/2, b + H/2, 0, og); box(Wd, fw, depth, frameMat, 0, b + H - fw/2, 0, og);
-  if (o.kind === 'window'){ box(Wd, fw, depth, frameMat, 0, b + fw/2, 0, og); box(Wd + 0.06, 0.025, 0.16, M.white, 0, b - 0.012, 0.05, og);
-    const n = Math.max(1, Math.round(Wd/1.0)); for (let k = 1; k < n; k++) box(0.035, H, 0.06, frameMat, -Wd/2 + k*Wd/n, b + H/2, 0, og);
+  if (o.kind === 'window'){ box(Wd, fw, depth, frameMat, 0, b + fw/2, 0, og);   // one plain sheet of glass, slim frame, no grilles
     const gl = new THREE.Mesh(new THREE.PlaneGeometry(Wd - fw*2, H - fw*2), M.glass); gl.position.set(0, b + H/2, 0); og.add(gl); }
   if (o.kind === 'glassDoor'){ const gl = new THREE.Mesh(new THREE.PlaneGeometry(Wd - fw*2, H - fw), M.glass); gl.position.set(0, (H - fw)/2, 0); og.add(gl);
     box(0.025, 0.6, 0.025, M.chrome, Wd/2 - 0.14, 1.05, 0.06, og); box(0.025, 0.6, 0.025, M.chrome, Wd/2 - 0.14, 1.05, -0.06, og); box(Wd - fw*2, 0.1, 0.03, M.alu, 0, 0.05, 0, og); }
@@ -518,7 +522,7 @@ function deleteSel(){ if (!selId) return; pushUndo(); const g = nodes.get(selId)
 function duplicateSel(){ const it = getItem(selId); if (!it) return; pushUndo(); const c = structuredClone(it); c.id = uid(); placeItem(c, it.x + 0.3, it.z + 0.3); state.items.push(c); buildItem(c); updateColliders(); select(c.id); save(); }
 function addItem(type){ pushUndo(); const T = TYPES[type]; const it = { id:uid(), type, x:0, z:0, rot:0 };
   if (T.wall){ it.props = { mountY:T.defMount }; placeItem(it, 0, -state.room.l/2); } else placeItem(it, 0, 0);
-  if (type === 'desk') it.props = { height:0.74 };
+  if (type === 'desk') it.props = { height:0.74, monX:0.3 };
   state.items.push(it); buildItem(it); updateColliders(); select(it.id, true); save(); toast(`${T.label} added. Open the Item tab to adjust it`); }
 
 /* ===================== camera modes ===================== */
@@ -645,7 +649,8 @@ function renderItemPane(light){
   <div class="btnrow"><button class="btn ghost" data-a="rl">⟲ 15°</button><button class="btn ghost" data-a="rr">⟳ 15°</button><button class="btn ghost" data-a="r90">↻ 90°</button></div>
   <div class="btnrow"><button class="btn ghost" data-a="dup">⧉ Duplicate</button><button class="btn ghost warn" data-a="del">🗑 Delete</button></div>`;
   if (it.type === 'desk'){ const H = P(it, 'height', 0.74); html += `<h4>Desk height</h4><div class="row"><input type="range" id="deskH" min="0.65" max="1.25" step="0.01" value="${H}"><span class="val" id="deskHv">${cm(H)} cm</span></div>
-    <div class="btnrow"><button class="btn ghost" data-h="0.74">🪑 Sit 74 cm</button><button class="btn ghost" data-h="1.1">🧍 Stand 110 cm</button></div>`; }
+    <div class="btnrow"><button class="btn ghost" data-h="0.74">🪑 Sit 74 cm</button><button class="btn ghost" data-h="1.1">🧍 Stand 110 cm</button></div>
+    <h4>Monitor position (from the chair)</h4><div class="btnrow"><button class="btn ghost" data-mx="-0.3">◀ Left</button><button class="btn ghost" data-mx="0">Centre</button><button class="btn ghost" data-mx="0.3">Right ▶</button></div>`; }
   if (it.type === 'table'){ html += `<h4>Table size</h4><div class="row"><label>Width</label><input type="range" id="tw" min="0.6" max="1.8" step="0.05" value="${P(it,'w',1.2)}"><span class="val" id="twv">${cm(P(it,'w',1.2))} cm</span></div>
     <div class="row"><label>Depth</label><input type="range" id="td" min="0.4" max="0.9" step="0.05" value="${P(it,'d',0.5)}"><span class="val" id="tdv">${cm(P(it,'d',0.5))} cm</span></div>`; }
   if (T.wall){ const y = P(it, 'mountY', T.defMount); html += `<h4>Mount height (centre)</h4><div class="row"><input type="range" id="my" min="0.6" max="${(state.room.h - h/2 - 0.02).toFixed(2)}" step="0.01" value="${y}"><span class="val" id="myv">${cm(y)} cm</span></div><p class="muted">Drag it near any wall to move it there.</p>`; }
@@ -655,6 +660,7 @@ function renderItemPane(light){
   const bindRange = (id, prop, lbl, after) => { const r = $(id); if (!r) return; r.onpointerdown = () => pushUndo();
     r.oninput = () => { it.props = { ...(it.props || {}), [prop]:parseFloat(r.value) }; $(lbl).textContent = cm(r.value) + ' cm'; if (after) after(); buildItem(it); updateColliders(); select(it.id, true); save(); }; };
   bindRange('deskH', 'height', 'deskHv'); bindRange('tw', 'w', 'twv', () => placeItem(it, it.x, it.z, true)); bindRange('td', 'd', 'tdv', () => placeItem(it, it.x, it.z, true)); bindRange('my', 'mountY', 'myv');
+  el.querySelectorAll('[data-mx]').forEach(b => b.onclick = () => { pushUndo(); it.props = { ...(it.props || {}), monX:parseFloat(b.dataset.mx) }; buildItem(it); select(it.id, true); save(); });
   el.querySelectorAll('[data-h]').forEach(b => b.onclick = () => { pushUndo(); it.props = { ...(it.props || {}), height:parseFloat(b.dataset.h) }; buildItem(it); select(it.id, true); save(); });
   if ($('icol')){ $('icol').onclick = () => pushUndo(); $('icol').oninput = e => { it.color = e.target.value; buildItem(it); if (selBox) selBox.setFromObject(nodes.get(it.id)); save(); };
     $('icolReset').onclick = () => { pushUndo(); delete it.color; buildItem(it); select(it.id, true); save(); }; }
@@ -665,8 +671,8 @@ function renderLookPane(){
   $('pane-look').innerHTML = `<h4>Floor</h4><div class="card"><div class="row"><label>Finish</label><select id="floorType">${['vinyl','tiles','carpet','plain'].map(t => `<option value="${t}" ${m.floorType === t ? 'selected' : ''}>${{ vinyl:'Vinyl planks', tiles:'Tiles', carpet:'Carpet', plain:'Plain' }[t]}</option>`).join('')}</select></div></div>
    ${sw('floor', 'Floor colour', MATERIAL_PRESETS.floor)}<h4>Walls &amp; ceiling</h4>${sw('walls', 'Walls', MATERIAL_PRESETS.walls)}${sw('ceiling', 'Ceiling')}
    <h4>Student tables &amp; chairs</h4>${sw('tableTop', 'Table tops', MATERIAL_PRESETS.tableTop)}${sw('tableLegs', 'Table legs')}${sw('chair', 'Chairs', MATERIAL_PRESETS.chair)}
-   <h4>Teacher's station</h4>${sw('deskTop', 'Desk top')}${sw('deskFrame', 'Desk frame / cabinet')}${sw('teacherChair', 'Teacher chair')}
-   <h4>Extras</h4>${sw('fabric', 'Sofa fabric')}
+   <h4>Teacher's station</h4>${sw('deskTop', 'Desk top')}${sw('deskFrame', 'Desk frame')}${sw('teacherChair', 'Teacher chair')}
+   <h4>Extras</h4>${sw('cabinet', 'Cabinet')}${sw('fabric', 'Sofa fabric')}
    <h4>Lighting</h4><div class="row"><label>Brightness</label><input type="range" id="lightR" min="0.3" max="2" step="0.05" value="${state.room.light}"></div>`;
   $('pane-look').querySelectorAll('input[type=color][data-m]').forEach(inp => { inp.onclick = () => pushUndo(); inp.oninput = () => { m[inp.dataset.m] = inp.value; applyMaterials(); save(); }; });
   $('pane-look').querySelectorAll('.chip[data-m]').forEach(b => b.onclick = () => { pushUndo(); m[b.dataset.m] = b.dataset.c; applyMaterials(); save(); renderLookPane(); });
