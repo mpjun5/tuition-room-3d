@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Tuition Room 3D Planner</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏫</text></svg>">
+<style>
+  :root{--bg:rgba(255,255,255,.86);--fg:#1d2330;--mut:#6b7280;--acc:#2563eb;--bd:rgba(0,0,0,.08);--r:14px}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;font:14px/1.35 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;color:var(--fg);background:#dfe3e8}
+  #view{position:fixed;inset:0;touch-action:none}
+  #view canvas{display:block;outline:none}
+  .glass{background:var(--bg);backdrop-filter:blur(14px) saturate(1.4);-webkit-backdrop-filter:blur(14px) saturate(1.4);border:1px solid var(--bd);border-radius:var(--r);box-shadow:0 6px 24px rgba(15,23,42,.12)}
+  #topbar{position:fixed;top:max(10px,env(safe-area-inset-top));left:10px;right:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;pointer-events:none;z-index:5}
+  #topbar>*{pointer-events:auto}
+  .brand{padding:8px 12px;font-weight:650;display:flex;gap:8px;align-items:center}
+  .brand small{font-weight:500;color:var(--mut)}
+  .seg{display:flex;padding:3px;gap:2px}
+  .seg button,.btn{border:0;background:transparent;padding:7px 11px;border-radius:10px;font:inherit;font-weight:550;color:var(--fg);cursor:pointer;white-space:nowrap}
+  .seg button.on{background:var(--acc);color:#fff}
+  .seg button:not(.on):hover,.btn:hover{background:rgba(0,0,0,.06)}
+  .btn.warn{color:#b91c1c}
+  .btn.ghost{border:1px solid var(--bd);background:#fff}
+  .tog{display:flex;align-items:center;gap:6px;padding:6px 10px;font-weight:550;cursor:pointer;user-select:none}
+  .tog input{accent-color:var(--acc);width:16px;height:16px}
+  select,input[type=number]{font:inherit;padding:5px 7px;border:1px solid var(--bd);border-radius:8px;background:#fff;color:var(--fg)}
+  input[type=number]{width:72px}
+  input[type=range]{width:100%;accent-color:var(--acc)}
+  input[type=color]{width:38px;height:28px;border:1px solid var(--bd);border-radius:8px;padding:2px;background:#fff;cursor:pointer}
+  .spacer{flex:1}
+  #panel{position:fixed;top:66px;right:10px;bottom:10px;width:310px;display:flex;flex-direction:column;z-index:4;transition:transform .25s}
+  #panel.hidden{transform:translateX(calc(100% + 20px))}
+  .tabs{display:flex;gap:2px;padding:6px;border-bottom:1px solid var(--bd)}
+  .tabs button{flex:1;border:0;background:transparent;padding:7px 4px;border-radius:9px;font:inherit;font-size:13px;font-weight:600;color:var(--mut);cursor:pointer}
+  .tabs button.on{background:#fff;color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+  .pane{display:none;padding:12px;overflow:auto;flex:1}
+  .pane.on{display:block}
+  h4{margin:14px 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut)}
+  h4:first-child{margin-top:0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .add{display:flex;align-items:center;gap:8px;padding:9px;border:1px solid var(--bd);background:#fff;border-radius:11px;cursor:pointer;font:inherit;font-weight:550;text-align:left;color:var(--fg)}
+  .add:hover{border-color:var(--acc)}
+  .add span{font-size:18px}
+  .row{display:flex;align-items:center;gap:8px;margin:7px 0}
+  .row label{flex:1;color:#374151}
+  .row .val{min-width:56px;text-align:right;color:var(--mut);font-variant-numeric:tabular-nums}
+  .btnrow{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+  .muted{color:var(--mut);font-size:13px}
+  .dims{font-size:20px;font-weight:650;margin:2px 0 4px;font-variant-numeric:tabular-nums}
+  .card{border:1px solid var(--bd);background:#fff;border-radius:11px;padding:9px;margin:8px 0}
+  .chips{display:flex;flex-wrap:wrap;gap:5px}
+  .chip{border:1px solid var(--bd);border-radius:999px;cursor:pointer}
+  .chip:hover{border-color:var(--acc)}
+  #hint{position:fixed;left:10px;bottom:max(10px,env(safe-area-inset-bottom));padding:8px 12px;font-size:12.5px;color:#374151;max-width:min(460px,60vw);z-index:3}
+  #hint b{color:var(--fg)}
+  #dimlabel{position:fixed;transform:translate(-50%,-120%);padding:4px 9px;background:#111827;color:#fff;border-radius:8px;font-size:12px;font-weight:600;white-space:nowrap;pointer-events:none;display:none;z-index:2;font-variant-numeric:tabular-nums}
+  .roomlbl{position:fixed;transform:translate(-50%,-50%);font-size:12px;font-weight:650;color:#334155;background:rgba(255,255,255,.8);padding:2px 7px;border-radius:6px;pointer-events:none;display:none;z-index:1}
+  #joy{position:fixed;left:24px;bottom:calc(70px + env(safe-area-inset-bottom));width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,.35);border:2px solid rgba(255,255,255,.7);display:none;touch-action:none;z-index:3;box-shadow:0 4px 18px rgba(0,0,0,.15)}
+  #joy .knob{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;background:rgba(255,255,255,.9);box-shadow:0 2px 8px rgba(0,0,0,.25)}
+  #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#111827;color:#fff;padding:8px 14px;border-radius:10px;font-weight:550;opacity:0;transition:opacity .25s;pointer-events:none;z-index:9}
+  #loading{position:fixed;inset:0;display:grid;place-items:center;background:#e5e7eb;z-index:20;font-weight:600;color:#475569}
+  @media (max-width:820px){#panel{width:290px} .brand small{display:none}}
+  @media (pointer:coarse){.seg button,.btn{padding:9px 13px}}
+</style>
+<script type="importmap">
+{"imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+}}
+</script>
+</head>
+<body>
+<div id="loading">Loading 3D room…</div>
+<div id="view"></div>
+
+<div id="topbar">
+  <div class="brand glass">🏫 Tuition Room <small id="roomsize">3.0 × 5.5 m</small></div>
+  <div class="seg glass" id="modes">
+    <button data-mode="walk">🚶 Walk</button>
+    <button data-mode="orbit" class="on">🧊 3D</button>
+    <button data-mode="top">🗺️ Top</button>
+  </div>
+  <label class="tog glass"><input type="checkbox" id="editTog" checked> ✏️ Edit</label>
+  <label class="tog glass"><input type="checkbox" id="snapTog" checked> Snap
+    <select id="snapSize"><option value="0.05">5 cm</option><option value="0.1" selected>10 cm</option><option value="0.25">25 cm</option></select></label>
+  <div class="spacer"></div>
+  <button class="btn glass" id="undoBtn" title="Undo (Ctrl/⌘+Z)">↶ Undo</button>
+  <button class="btn glass" id="panelBtn">☰ Panel</button>
+</div>
+
+<div id="panel" class="glass">
+  <div class="tabs">
+    <button data-tab="add" class="on">Add</button>
+    <button data-tab="item">Item</button>
+    <button data-tab="look">Colours</button>
+    <button data-tab="room">Room</button>
+    <button data-tab="file">File</button>
+  </div>
+  <div class="pane on" id="pane-add">
+    <h4>Classroom</h4><div class="grid2" id="addCore"></div>
+    <h4>Extras</h4><div class="grid2" id="addExtra"></div>
+    <p class="muted">New pieces drop in the middle of the room. Turn on ✏️ Edit, then drag to move.</p>
+  </div>
+  <div class="pane" id="pane-item"></div>
+  <div class="pane" id="pane-look"></div>
+  <div class="pane" id="pane-room"></div>
+  <div class="pane" id="pane-file">
+    <h4>Layout</h4>
+    <p class="muted">Changes save automatically in this browser.</p>
+    <div class="btnrow">
+      <button class="btn ghost" id="exportBtn">⬇️ Export JSON</button>
+      <button class="btn ghost" id="importBtn">⬆️ Import JSON</button>
+      <input type="file" id="importFile" accept="application/json,.json" hidden>
+    </div>
+    <div class="btnrow"><button class="btn ghost" id="shotBtn">📸 Save screenshot</button></div>
+    <h4>Reset</h4>
+    <div class="btnrow"><button class="btn ghost warn" id="resetBtn">Reset to default layout</button></div>
+    <h4>Controls</h4>
+    <div class="muted">
+      <b>Walk:</b> WASD / arrow keys to move, drag to look around, Shift to go faster. On iPad, use the joystick and drag to look.<br>
+      <b>3D / Top:</b> drag to orbit, scroll or pinch to zoom, right-drag or two fingers to pan.<br>
+      <b>Edit:</b> tap a piece to select it and drag it to move. R rotates 90° (Shift+R 15°), Delete removes, ⌘/Ctrl+D duplicates, arrow keys nudge, Esc deselects.
+    </div>
+  </div>
+</div>
+
+<div id="hint" class="glass"></div>
+<div id="dimlabel"></div>
+<div class="roomlbl" id="lblW"></div><div class="roomlbl" id="lblL"></div><div class="roomlbl" id="lblF">FRONT · TV</div>
+<div id="joy"><div class="knob"></div></div>
+<div id="toast"></div>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+/* =====================================================================
+   CONFIG: tweak looks and the default layout here.
+   Units: metres. Axes: x = across the room (width), z = along the room
+   (front/TV wall at -L/2, back/door wall at +L/2), y = up.
+   rot is in radians; 0 means the piece faces the front (TV wall).
+   ===================================================================== */
+const STORE_KEY = 'tuitionRoom3d.v1';
+const DEFAULT_ROOM = {
+  w: 3.0, l: 5.5, h: 2.7,           // ASSUMPTION: 2.7 m ceiling
+  light: 1.0,                        // ceiling light brightness multiplier
+  openings: [
+    // wall: front | back | left | right; pos = centre along that wall (x for front/back, z for left/right)
+    { id:'door',      kind:'door',      name:'Door (solid)', wall:'back',  pos:-0.85, width:0.9, height:2.1 },
+    { id:'glassDoor', kind:'glassDoor', name:'Glass door',   wall:'right', pos: 2.15, width:0.9, height:2.1 },
+    { id:'window',    kind:'window',    name:'Glass window', wall:'right', pos:-0.35, width:2.6, sill:0.9, height:1.3 },
+  ],
+};
+const DEFAULT_MATERIALS = {
+  floor:'#8d9095', floorType:'vinyl', walls:'#f4f4f1', ceiling:'#ffffff',
+  tableTop:'#c39a6b', tableLegs:'#f7f7f7', chair:'#8a8f97',
+  deskTop:'#cfa77c', deskFrame:'#f4f4f4', teacherChair:'#2b2e33', fabric:'#5b6b7a',
+};
+const MATERIAL_PRESETS = {
+  floor:['#8d9095','#b5b8bc','#6b6f75','#c8b59a','#9c7b5b','#d9d6d0'],
+  walls:['#f4f4f1','#ffffff','#eef2f5','#f3ede4','#e3ebe3','#dfe6ee'],
+  tableTop:['#c39a6b','#e2c9a3','#8b5e3c','#f2f2f0','#5a4636','#b8a088'],
+  chair:['#8a8f97','#5f646b','#c9ccd1','#2f3237','#3b6ea5','#d97a3a'],
+};
+function defaultItems(){
+  const it = []; let n = 0; const id = () => 'i' + (++n);
+  const rowZ = [-1.05, 0.0, 1.05];          // 3 rows of 2 tables
+  const tx = 1.5 - 0.6 - 0.02;              // tables against the side walls, centre aisle ~56 cm
+  for (const z of rowZ) for (const sx of [-1, 1]) {
+    const x = sx * tx;
+    it.push({ id:id(), type:'table', x, z, rot:0 });
+    it.push({ id:id(), type:'chair', x:x-0.3, z:z+0.38, rot:0 });
+    it.push({ id:id(), type:'chair', x:x+0.3, z:z+0.38, rot:0 });
+  }
+  it.push({ id:id(), type:'tv', x:0, z:-2.75, rot:0, props:{ mountY:1.45 } });
+  it.push({ id:id(), type:'desk', x:-1.18, z:-2.05, rot:Math.PI/2, props:{ height:0.74 } });
+  it.push({ id:id(), type:'teacherChair', x:-0.6, z:-2.05, rot:Math.PI/2 });
+  return it;
+}
+function defaultState(){ return { version:1, room:structuredClone(DEFAULT_ROOM), materials:{...DEFAULT_MATERIALS}, items:defaultItems() }; }
+
+/* ===================== state ===================== */
+let state = load() || defaultState();
+function load(){ try{ const s = JSON.parse(localStorage.getItem(STORE_KEY)); if (!validState(s)) return null; s.materials = { ...DEFAULT_MATERIALS, ...s.materials }; return s; }catch{ return null; } }
+function validState(s){ return !!(s && s.room && Array.isArray(s.items) && s.materials && Array.isArray(s.room.openings)); }
+let saveT; function save(){ clearTimeout(saveT); saveT = setTimeout(()=>{ try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch{} }, 250); }
+const undoStack = [];
+function pushUndo(){ undoStack.push(JSON.stringify(state)); if (undoStack.length > 60) undoStack.shift(); }
+function undo(){ const s = undoStack.pop(); if (!s) return toast('Nothing to undo'); state = JSON.parse(s); rebuildAll(); save(); toast('Undone'); }
+const uid = () => 'i' + Math.random().toString(36).slice(2, 9);
+const P = (item, k, d) => (item.props && item.props[k] != null) ? item.props[k] : d;
+
+/* ===================== renderer / scene ===================== */
+const view = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({ antialias:true, preserveDrawingBuffer:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
+view.appendChild(renderer.domElement);
+RectAreaLightUniformsLib.init();
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#dfe3e8');
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.45;
+
+const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.05, 100);
+camera.rotation.order = 'YXZ';
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.09; controls.screenSpacePanning = true;
+controls.minDistance = 1; controls.maxDistance = 22;
+
+const hemi = new THREE.HemisphereLight(0xffffff, 0xb8bcc2, 0.55); scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffffff, 0.55);
+sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.02; sun.shadow.radius = 4;
+scene.add(sun, sun.target);
+
+const roomGroup = new THREE.Group(); scene.add(roomGroup);
+const itemsGroup = new THREE.Group(); scene.add(itemsGroup);
+let grid = null;
+
+/* ===================== procedural textures ===================== */
+function canvasTex(w, h, draw, repeat){
+  const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); draw(g, w, h);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  if (repeat){ t.wrapS = t.wrapT = THREE.RepeatWrapping; }
+  return t;
+}
+function rnd(seed){ let s = seed >>> 0 || 1; return () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296; }
+const TEX = {
+  wood: canvasTex(512, 512, (g, w, h) => {
+    g.fillStyle = '#f2f2f2'; g.fillRect(0, 0, w, h); const r = rnd(7);
+    for (let i = 0; i < 140; i++){ const y = r()*h; g.strokeStyle = `rgba(${90+r()*40|0},${70+r()*30|0},50,${0.05+r()*0.08})`; g.lineWidth = 1 + r()*3;
+      g.beginPath(); g.moveTo(0, y); for (let x = 0; x <= w; x += 32) g.lineTo(x, y + Math.sin(x/90 + i)*4 + (r()-0.5)*2); g.stroke(); }
+  }, true),
+  vinyl: canvasTex(1024, 1024, (g, w, h) => {
+    g.fillStyle = '#f0f0f0'; g.fillRect(0, 0, w, h); const r = rnd(3); const ph = h/6;
+    for (let row = 0; row < 6; row++){ let x = -r()*w*0.5;
+      while (x < w){ const pw = w*(0.45 + r()*0.3); const v = 225 + r()*25 | 0; g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(x, row*ph, pw, ph);
+        for (let k = 0; k < 14; k++){ g.strokeStyle = `rgba(0,0,0,${0.02+r()*0.03})`; g.lineWidth = 1+r()*2; const yy = row*ph + r()*ph; g.beginPath(); g.moveTo(x, yy); g.lineTo(x+pw, yy + (r()-0.5)*6); g.stroke(); }
+        g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(x, row*ph, 2, ph); x += pw; }
+      g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(0, row*ph, w, 2); }
+  }, true),
+  tiles: canvasTex(512, 512, (g, w, h) => {
+    const r = rnd(5); for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++){ const v = 232 + r()*20 | 0; g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(i*w/2, j*h/2, w/2, h/2); }
+    g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 3; for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) g.strokeRect(i*w/2, j*h/2, w/2, h/2);
+  }, true),
+  carpet: canvasTex(256, 256, (g, w, h) => {
+    const id = g.createImageData(w, h); const r = rnd(9);
+    for (let i = 0; i < id.data.length; i += 4){ const v = 205 + r()*50; id.data[i] = id.data[i+1] = id.data[i+2] = v; id.data[i+3] = 255; } g.putImageData(id, 0, 0);
+  }, true),
+  plain: null,
+  mesh: canvasTex(128, 128, (g, w, h) => { g.fillStyle = '#c8c8c8'; g.fillRect(0, 0, w, h); g.strokeStyle = '#ffffff'; g.lineWidth = 2;
+    for (let i = 0; i < w; i += 8){ g.beginPath(); g.moveTo(i, 0); g.lineTo(i, h); g.stroke(); g.beginPath(); g.moveTo(0, i); g.lineTo(w, i); g.stroke(); } }, true),
+  tvScreen: canvasTex(1024, 576, (g, w, h) => {
+    const gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, '#0f2a4a'); gr.addColorStop(1, '#1e5a8a'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#fff'; g.font = 'bold 64px -apple-system,Segoe UI,sans-serif'; g.fillText('H2 Mathematics', 70, 150);
+    g.font = '40px -apple-system,Segoe UI,sans-serif'; g.fillStyle = '#cfe3ff'; g.fillText('Differential Equations', 70, 215);
+    g.font = 'italic 54px Georgia,serif'; g.fillStyle = '#fff'; g.fillText('dy/dx = ky   ⇒   y = Ae^(kx)', 70, 340);
+    g.fillStyle = 'rgba(255,255,255,.2)'; g.fillRect(70, 400, 600, 4); g.font = '30px -apple-system,sans-serif'; g.fillStyle = '#cfe3ff'; g.fillText('Separate variables · Integrate · Apply initial condition', 70, 460);
+  }),
+  monitor: canvasTex(512, 300, (g, w, h) => { g.fillStyle = '#1f2937'; g.fillRect(0, 0, w, h); g.fillStyle = '#f8fafc'; g.fillRect(20, 20, w-40, h-40);
+    g.fillStyle = '#2563eb'; g.fillRect(20, 20, w-40, 30); g.fillStyle = '#94a3b8'; for (let i = 0; i < 8; i++) g.fillRect(40, 70 + i*24, 150 + (i*53 % 250), 9); }),
+  board: canvasTex(1024, 680, (g, w, h) => { g.fillStyle = '#fbfbfb'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(30,64,175,.8)';
+    g.font = 'italic 56px Georgia,serif'; g.fillText('∫ e^(2x) dx = ½ e^(2x) + C', 60, 140); g.font = '44px Georgia,serif'; g.fillStyle = 'rgba(185,28,28,.8)'; g.fillText('Tutorial 7: Q3, Q5', 60, 240); }),
+  clock: canvasTex(256, 256, (g) => { g.fillStyle = '#fff'; g.beginPath(); g.arc(128, 128, 126, 0, 7); g.fill(); g.fillStyle = '#111';
+    for (let i = 0; i < 12; i++){ g.save(); g.translate(128, 128); g.rotate(i/12*Math.PI*2); g.fillRect(-3, -118, 6, i%3 ? 14 : 24); g.restore(); }
+    g.strokeStyle = '#111'; g.lineCap = 'round'; g.lineWidth = 8; g.beginPath(); g.moveTo(128, 128); g.lineTo(128, 60); g.stroke(); g.lineWidth = 5; g.beginPath(); g.moveTo(128, 128); g.lineTo(190, 150); g.stroke(); }),
+};
+
+/* ===================== shared materials ===================== */
+const std = (o) => new THREE.MeshStandardMaterial(o);
+const M = {
+  floor: std({ roughness:0.75, metalness:0 }),
+  walls: std({ roughness:0.95 }),
+  ceiling: std({ roughness:0.95 }),
+  tableTop: std({ map:TEX.wood, roughness:0.55 }),
+  tableLegs: std({ roughness:0.4, metalness:0.2 }),
+  chair: std({ roughness:0.6 }),
+  deskTop: std({ map:TEX.wood, roughness:0.5 }),
+  deskFrame: std({ roughness:0.35, metalness:0.25 }),
+  teacherChair: std({ roughness:0.5 }),
+  fabric: std({ roughness:0.9 }),
+  chairMesh: std({ map:TEX.mesh, roughness:0.8 }),
+  black: std({ color:'#111317', roughness:0.4, metalness:0.2 }),
+  darkMetal: std({ color:'#3a3d42', roughness:0.35, metalness:0.7 }),
+  chrome: std({ color:'#cfd3d8', roughness:0.2, metalness:0.9 }),
+  alu: std({ color:'#c9ccd0', roughness:0.35, metalness:0.8 }),
+  white: std({ color:'#f5f5f5', roughness:0.5 }),
+  glass: new THREE.MeshPhysicalMaterial({ color:'#cfe6f2', roughness:0.05, metalness:0, transparent:true, opacity:0.22, side:THREE.DoubleSide, depthWrite:false }),
+  doorWood: std({ map:TEX.wood, color:'#b58b62', roughness:0.6 }),
+  tvScreen: std({ color:'#000', emissive:'#ffffff', emissiveMap:TEX.tvScreen, emissiveIntensity:0.9, roughness:0.15 }),
+  monScreen: std({ color:'#000', emissive:'#ffffff', emissiveMap:TEX.monitor, emissiveIntensity:0.8, roughness:0.2 }),
+  board: std({ map:TEX.board, roughness:0.25 }),
+  clock: std({ map:TEX.clock, roughness:0.5 }),
+  panel: new THREE.MeshBasicMaterial({ color:'#ffffff' }),
+  leaf: std({ color:'#3f7d3a', roughness:0.7 }),
+  pot: std({ color:'#e8e3dc', roughness:0.8 }),
+  soil: std({ color:'#3b2c20', roughness:1 }),
+  outside: new THREE.MeshBasicMaterial({ color:'#cfe2ee' }),
+  outsideFloor: std({ color:'#cfd4da', roughness:1 }),
+};
+const COLOR_KEYS = ['floor','walls','ceiling','tableTop','tableLegs','chair','deskTop','deskFrame','teacherChair','fabric'];
+function applyMaterials(){
+  const m = state.materials;
+  for (const k of COLOR_KEYS) M[k].color.set(m[k]);
+  M.chairMesh.color.set(m.teacherChair).offsetHSL(0, 0, 0.12);
+  const t = TEX[m.floorType] || null;
+  M.floor.map = t; M.floor.roughness = m.floorType === 'tiles' ? 0.35 : m.floorType === 'carpet' ? 1 : 0.7; M.floor.needsUpdate = true;
+  if (t){ const s = m.floorType === 'carpet' ? 0.5 : m.floorType === 'tiles' ? 1.2 : 2.4; t.repeat.set(state.room.w/s, state.room.l/s); }
+}
+
+/* ===================== geometry helpers ===================== */
+function mesh(geo, mat, x, y, z, parent){ const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; parent && parent.add(m); return m; }
+const box = (w, h, d, mat, x, y, z, p) => mesh(new THREE.BoxGeometry(w, h, d), mat, x, y, z, p);
+const rbox = (w, h, d, r, mat, x, y, z, p) => mesh(new RoundedBoxGeometry(w, h, d, 3, Math.min(r, w/2, h/2, d/2)), mat, x, y, z, p);
+const cyl = (rt, rb, h, mat, x, y, z, p, seg = 20) => mesh(new THREE.CylinderGeometry(rt, rb, h, seg), mat, x, y, z, p);
+function itemMat(item, key){ if (!item.color) return M[key]; const m = M[key].clone(); m.color.set(item.color); return m; }
+
+/* ===================== furniture catalogue =====================
+   Each type: label, icon, group, size(item) -> [width, depth, height] (m),
+   wall: true if wall-mounted (snaps to walls), colorKey (for the colour picker),
+   build(item, g) adds meshes to group g in local space; front of a piece = -z
+   (wall pieces: back against the wall at local z=0, facing +z).            */
+const TYPES = {
+  table: { label:'Table', icon:'🟫', group:'core', colorKey:'tableTop',
+    size: i => [P(i,'w',1.2), P(i,'d',0.5), 0.75],
+    build(i, g){ const w = P(i,'w',1.2), d = P(i,'d',0.5), top = itemMat(i,'tableTop');
+      box(w, 0.03, d, top, 0, 0.735, 0, g);
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) box(0.04, 0.72, 0.04, M.tableLegs, sx*(w/2-0.05), 0.36, sz*(d/2-0.05), g);
+      box(w-0.12, 0.05, 0.02, M.tableLegs, 0, 0.69, d/2-0.05, g); box(0.02, 0.05, d-0.12, M.tableLegs, -(w/2-0.05), 0.69, 0, g); box(0.02, 0.05, d-0.12, M.tableLegs, w/2-0.05, 0.69, 0, g); } },
+  chair: { label:'Student chair', icon:'🪑', group:'core', colorKey:'chair',
+    size: () => [0.46, 0.5, 0.86],
+    build(i, g){ const c = itemMat(i,'chair');
+      rbox(0.44, 0.04, 0.43, 0.015, c, 0, 0.455, 0, g);
+      const b = rbox(0.43, 0.28, 0.03, 0.012, c, 0, 0.71, 0.215, g); b.rotation.x = 0.12;
+      for (const sx of [-1, 1]){ for (const sz of [-1, 1]) cyl(0.011, 0.011, 0.44, M.darkMetal, sx*0.19, 0.22, sz*0.18, g, 10);
+        const s = cyl(0.01, 0.01, 0.28, M.darkMetal, sx*0.17, 0.58, 0.2, g, 8); s.rotation.x = 0.12; } } },
+  tv: { label:'65" TV', icon:'📺', group:'core', wall:true, colorKey:null,
+    size: () => [1.45, 0.06, 0.84], defMount:1.45,
+    build(i, g){ box(0.4, 0.3, 0.03, M.darkMetal, 0, 0, 0.015, g); box(1.452, 0.838, 0.03, M.black, 0, 0, 0.045, g);
+      const s = mesh(new THREE.PlaneGeometry(1.43, 0.805), M.tvScreen, 0, 0.004, 0.0605, g); s.castShadow = false; } },
+  desk: { label:'Electric desk', icon:'🖥️', group:'core', colorKey:'deskTop',
+    size: i => [1.2, 0.6, P(i,'height',0.74) + 0.55],
+    build(i, g){ const H = P(i,'height',0.74), top = itemMat(i,'deskTop'), F = M.deskFrame;
+      box(1.2, 0.025, 0.6, top, 0, H-0.0125, 0, g);
+      box(1.0, 0.035, 0.06, F, 0, H-0.045, 0, g);
+      for (const sx of [-1, 1]){ const x = sx*0.5;
+        box(0.08, 0.03, 0.6, F, x, 0.015, 0, g);                       // foot
+        box(0.075, 0.5, 0.055, F, x, 0.28, 0, g);                       // lower column
+        const up = Math.max(0.05, H - 0.06 - 0.45); box(0.062, up, 0.045, F, x, 0.45 + up/2, 0, g); // telescoping column
+        box(0.06, 0.03, 0.5, F, x, H-0.04, 0, g); }
+      box(0.12, 0.022, 0.05, M.black, 0.42, H-0.036, 0.29, g);          // up/down handset
+      // monitor arm + 27" monitor (approx. 61 x 36.5 cm incl. bezel)
+      box(0.06, 0.05, 0.08, M.darkMetal, 0, H+0.01, -0.27, g);
+      cyl(0.018, 0.018, 0.4, M.darkMetal, 0, H+0.2, -0.27, g, 14);
+      const a1 = box(0.035, 0.03, 0.22, M.darkMetal, 0, H+0.33, -0.17, g); a1.rotation.x = -0.12;
+      box(0.1, 0.1, 0.02, M.darkMetal, 0, H+0.36, -0.07, g);
+      box(0.615, 0.365, 0.022, M.black, 0, H+0.36, -0.05, g);
+      const sc = mesh(new THREE.PlaneGeometry(0.598, 0.336), M.monScreen, 0, H+0.365, -0.0385, g); sc.castShadow = false; } },
+  teacherChair: { label:'Teacher chair (Herman Miller style)', icon:'💺', group:'core', colorKey:'teacherChair',
+    size: () => [0.68, 0.64, 1.08],
+    build(i, g){ const C = itemMat(i,'teacherChair'), MESH = M.chairMesh;
+      for (let k = 0; k < 5; k++){ const a = k/5*Math.PI*2, leg = box(0.32, 0.035, 0.05, C, Math.cos(a)*0.16, 0.08, Math.sin(a)*0.16, g); leg.rotation.y = -a;
+        mesh(new THREE.SphereGeometry(0.03, 12, 8), M.black, Math.cos(a)*0.31, 0.03, Math.sin(a)*0.31, g); }
+      cyl(0.05, 0.06, 0.05, C, 0, 0.1, 0, g); cyl(0.022, 0.022, 0.3, M.chrome, 0, 0.27, 0, g, 12);
+      box(0.3, 0.05, 0.3, C, 0, 0.42, 0.02, g);
+      rbox(0.52, 0.06, 0.5, 0.025, C, 0, 0.47, 0, g);
+      rbox(0.48, 0.02, 0.46, 0.01, MESH, 0, 0.505, 0, g);
+      const back = new THREE.Group(); back.position.set(0, 0.55, 0.26); back.rotation.x = 0.16; g.add(back);   // reclined mesh back
+      rbox(0.5, 0.58, 0.04, 0.02, C, 0, 0.32, 0.01, back); rbox(0.44, 0.52, 0.02, 0.01, MESH, 0, 0.32, -0.012, back);
+      box(0.4, 0.06, 0.03, C, 0, 0.18, -0.03, back);                        // lumbar pad
+      box(0.06, 0.18, 0.04, C, 0, -0.04, 0.02, back);                       // spine
+      for (const sx of [-1, 1]){ const p = box(0.035, 0.2, 0.035, C, sx*0.28, 0.58, 0.04, g); p.rotation.x = -0.1; rbox(0.08, 0.03, 0.26, 0.012, M.black, sx*0.28, 0.69, 0.0, g); } } },
+  whiteboard: { label:'Whiteboard', icon:'⬜', group:'extra', wall:true, colorKey:null, size: () => [1.8, 0.05, 1.2], defMount:1.45,
+    build(i, g){ box(1.82, 1.22, 0.025, M.alu, 0, 0, 0.0125, g); const b = mesh(new THREE.PlaneGeometry(1.78, 1.18), M.board, 0, 0, 0.026, g); b.castShadow = false;
+      box(0.7, 0.025, 0.07, M.alu, 0, -0.6, 0.04, g); } },
+  bookshelf: { label:'Bookshelf', icon:'📚', group:'extra', colorKey:'tableTop', size: () => [0.8, 0.3, 1.8],
+    build(i, g){ const w = itemMat(i,'tableTop'); box(0.02, 1.8, 0.3, w, -0.39, 0.9, 0, g); box(0.02, 1.8, 0.3, w, 0.39, 0.9, 0, g); box(0.8, 1.8, 0.01, w, 0, 0.9, 0.145, g);
+      const r = rnd([...i.id].reduce((a, c) => a + c.charCodeAt(0), 0)); const cols = ['#b91c1c','#1d4ed8','#047857','#a16207','#6d28d9','#374151','#be185d'];
+      for (let s = 0; s < 5; s++){ const y = 0.02 + s*0.44; box(0.76, 0.02, 0.29, w, 0, y, 0, g); if (s === 4) break;
+        let x = -0.36; while (x < 0.3){ const bw = 0.02 + r()*0.03, bh = 0.22 + r()*0.12; if (r() > 0.15) box(bw, bh, 0.2, std({ color:cols[r()*cols.length|0], roughness:0.8 }), x + bw/2, y + 0.01 + bh/2, -0.02, g); x += bw + 0.003; } } } },
+  cabinet: { label:'Cabinet', icon:'🗄️', group:'extra', colorKey:'deskFrame', size: () => [0.9, 0.45, 0.9],
+    build(i, g){ const c = itemMat(i,'deskFrame'); box(0.9, 0.88, 0.45, c, 0, 0.46, 0, g); box(0.86, 0.02, 0.43, c, 0, 0.01, 0, g);
+      box(0.004, 0.84, 0.005, M.darkMetal, 0, 0.46, -0.226, g); for (const sx of [-1, 1]) box(0.012, 0.16, 0.02, M.chrome, sx*0.05, 0.6, -0.235, g); } },
+  plant: { label:'Plant', icon:'🪴', group:'extra', colorKey:null, size: () => [0.5, 0.5, 1.2],
+    build(i, g){ cyl(0.17, 0.13, 0.34, M.pot, 0, 0.17, 0, g, 24); cyl(0.155, 0.155, 0.02, M.soil, 0, 0.33, 0, g, 20); const r = rnd(42);
+      for (let k = 0; k < 14; k++){ const a = r()*Math.PI*2, h = 0.55 + r()*0.55, lean = 0.08 + r()*0.16; const st = cyl(0.008, 0.01, h-0.3, M.leaf, Math.cos(a)*lean/2, 0.33 + (h-0.3)/2, Math.sin(a)*lean/2, g, 6); st.rotation.set(Math.sin(a)*0.3, 0, -Math.cos(a)*0.3);
+        const l = mesh(new THREE.SphereGeometry(0.07, 10, 8), M.leaf, Math.cos(a)*lean, h, Math.sin(a)*lean, g); l.scale.set(1.6, 0.35, 0.8); l.rotation.set(r(), a, r()*0.5); } } },
+  sofa: { label:'Sofa', icon:'🛋️', group:'extra', colorKey:'fabric', size: () => [1.8, 0.85, 0.8],
+    build(i, g){ const f = itemMat(i,'fabric'); box(1.8, 0.22, 0.85, f, 0, 0.17, 0, g);
+      for (const sx of [-1, 1]){ rbox(0.18, 0.6, 0.85, 0.05, f, sx*0.81, 0.36, 0, g); rbox(0.71, 0.14, 0.66, 0.05, f, sx*0.36, 0.35, -0.07, g); rbox(0.7, 0.42, 0.18, 0.06, f, sx*0.36, 0.6, 0.32, g); }
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) cyl(0.02, 0.015, 0.06, M.black, sx*0.82, 0.03, sz*0.35, g, 8); } },
+  aircon: { label:'Aircon', icon:'❄️', group:'extra', wall:true, colorKey:null, size: () => [0.9, 0.24, 0.3], defMount:2.35,
+    build(i, g){ rbox(0.9, 0.3, 0.24, 0.04, M.white, 0, 0, 0.12, g); box(0.8, 0.025, 0.02, M.darkMetal, 0, -0.12, 0.235, g); } },
+  clock: { label:'Wall clock', icon:'🕒', group:'extra', wall:true, colorKey:null, size: () => [0.32, 0.04, 0.32], defMount:2.1,
+    build(i, g){ const r = cyl(0.16, 0.16, 0.035, M.black, 0, 0, 0.018, g, 32); r.rotation.x = Math.PI/2; const f = mesh(new THREE.CircleGeometry(0.145, 32), M.clock, 0, 0, 0.037, g); f.castShadow = false; } },
+};
+
+/* ===================== room build ===================== */
+function wallInfo(name){ const { w, l } = state.room;
+  return { front:{ len:w, rot:0, at:p => [p, -l/2], toLocal:p => p },
+           back: { len:w, rot:Math.PI, at:p => [p, l/2], toLocal:p => -p },
+           left: { len:l, rot:Math.PI/2, at:p => [-w/2, p], toLocal:p => -p },
+           right:{ len:l, rot:-Math.PI/2, at:p => [w/2, p], toLocal:p => p } }[name]; }
+const WALLS = ['front','back','left','right'];
+let ceilingLights = [], ceilGroup = null;
+function clearGroup(g){ g.traverse(o => { if (o.isMesh) o.geometry.dispose(); }); g.clear(); }
+
+function buildRoom(){
+  clearGroup(roomGroup); ceilingLights.forEach(l => scene.remove(l)); ceilingLights = [];
+  const { w, l, h } = state.room;
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(w, l), M.floor); floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; roomGroup.add(floor);
+  const of = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), M.outsideFloor); of.rotation.x = -Math.PI/2; of.position.y = -0.005; of.receiveShadow = true; roomGroup.add(of);
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(w, l), M.ceiling); ceil.rotation.x = Math.PI/2; ceil.position.y = h; roomGroup.add(ceil);
+  for (const name of WALLS){
+    const wi = wallInfo(name), L = wi.len;
+    const shape = new THREE.Shape(); shape.moveTo(-L/2, 0); shape.lineTo(L/2, 0); shape.lineTo(L/2, h); shape.lineTo(-L/2, h); shape.lineTo(-L/2, 0);
+    const ops = state.room.openings.filter(o => o.wall === name);
+    for (const o of ops){ const c = wi.toLocal(o.pos), b = o.kind === 'window' ? o.sill : 0, t = Math.min(h-0.02, b + o.height);
+      const hole = new THREE.Path(); hole.moveTo(c-o.width/2, b); hole.lineTo(c-o.width/2, t); hole.lineTo(c+o.width/2, t); hole.lineTo(c+o.width/2, b); hole.lineTo(c-o.width/2, b); shape.holes.push(hole); }
+    const wm = new THREE.Mesh(new THREE.ShapeGeometry(shape), M.walls); wm.receiveShadow = true; wm.castShadow = true;
+    const [x, z] = wi.at(0); const g = new THREE.Group(); g.position.set(name === 'left' || name === 'right' ? x : 0, 0, name === 'front' || name === 'back' ? z : 0); g.rotation.y = wi.rot; g.add(wm);
+    const sk = box(L, 0.08, 0.012, M.walls, 0, 0.04, 0.006, g); sk.castShadow = false;     // skirting
+    roomGroup.add(g);
+    for (const o of ops) buildOpening(o, g, wi);
+  }
+  // 60x60 cm ceiling panel lights, evenly spaced; each is a real RectAreaLight
+  ceilGroup = new THREE.Group(); roomGroup.add(ceilGroup);   // hidden when the camera is above the ceiling
+  const cols = Math.max(1, Math.round(w/1.5)), rows = Math.max(1, Math.round(l/1.4));
+  for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++){
+    const x = -w/2 + (i + 0.5)*w/cols, z = -l/2 + (j + 0.5)*l/rows;
+    const fr = box(0.62, 0.012, 0.62, M.white, x, h - 0.006, z, ceilGroup); fr.castShadow = false;
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.58), M.panel); p.rotation.x = Math.PI/2; p.position.set(x, h - 0.0125, z); ceilGroup.add(p);
+    const ra = new THREE.RectAreaLight(0xffffff, 6 * state.room.light, 0.58, 0.58); ra.position.set(x, h - 0.02, z); ra.lookAt(x, 0, z); scene.add(ra); ceilingLights.push(ra);
+  }
+  hemi.intensity = 0.5 * state.room.light;
+  sun.position.set(0.6, h + 6, 1.2); sun.target.position.set(0, 0, 0);
+  const sc = sun.shadow.camera; sc.left = -w/2 - 1; sc.right = w/2 + 1; sc.top = l/2 + 1; sc.bottom = -l/2 - 1; sc.near = 1; sc.far = h + 12; sc.updateProjectionMatrix();
+  document.getElementById('roomsize').textContent = `${w.toFixed(1)} × ${l.toFixed(1)} m`;
+  if (grid){ scene.remove(grid); grid.geometry.dispose(); }
+  const step = snapSize(), n = Math.ceil(Math.max(w, l)/step);
+  grid = new THREE.GridHelper(n*step, n, 0x60a5fa, 0x9fb7d6); grid.material.transparent = true; grid.material.opacity = 0.35; grid.position.y = 0.002; scene.add(grid);
+  updateGridVis();
+  applyMaterials();
+}
+function buildOpening(o, wallG, wi){
+  const c = wi.toLocal(o.pos), og = new THREE.Group(); og.position.set(c, 0, 0); wallG.add(og);
+  const fw = 0.05, depth = 0.1, H = o.height, Wd = o.width;
+  const frameMat = o.kind === 'door' ? M.white : M.alu;
+  const b = o.kind === 'window' ? o.sill : 0;
+  box(fw, H, depth, frameMat, -Wd/2 + fw/2, b + H/2, 0, og); box(fw, H, depth, frameMat, Wd/2 - fw/2, b + H/2, 0, og); box(Wd, fw, depth, frameMat, 0, b + H - fw/2, 0, og);
+  if (o.kind === 'window'){ box(Wd, fw, depth, frameMat, 0, b + fw/2, 0, og); box(Wd + 0.06, 0.025, 0.16, M.white, 0, b - 0.012, 0.05, og);
+    const n = Math.max(1, Math.round(Wd/1.0)); for (let k = 1; k < n; k++) box(0.035, H, 0.06, frameMat, -Wd/2 + k*Wd/n, b + H/2, 0, og);
+    const gl = new THREE.Mesh(new THREE.PlaneGeometry(Wd - fw*2, H - fw*2), M.glass); gl.position.set(0, b + H/2, 0); og.add(gl); }
+  if (o.kind === 'glassDoor'){ const gl = new THREE.Mesh(new THREE.PlaneGeometry(Wd - fw*2, H - fw), M.glass); gl.position.set(0, (H - fw)/2, 0); og.add(gl);
+    box(0.025, 0.6, 0.025, M.chrome, Wd/2 - 0.14, 1.05, 0.06, og); box(0.025, 0.6, 0.025, M.chrome, Wd/2 - 0.14, 1.05, -0.06, og); box(Wd - fw*2, 0.1, 0.03, M.alu, 0, 0.05, 0, og); }
+  if (o.kind === 'door'){ box(Wd - fw*2, H - fw, 0.04, M.doorWood, 0, (H - fw)/2, 0, og);
+    box(0.14, 0.02, 0.02, M.chrome, Wd/2 - 0.16, 1.02, 0.05, og); cyl(0.03, 0.03, 0.02, M.chrome, Wd/2 - 0.12, 1.02, 0.03, og).rotation.x = Math.PI/2; }
+  if (o.kind !== 'door'){ const bd = new THREE.Mesh(new THREE.PlaneGeometry(Wd + 1, H + 0.6), M.outside); bd.position.set(0, b + H/2, -1.2); og.add(bd); }  // bright corridor behind glass
+}
+
+/* ===================== items ===================== */
+const nodes = new Map();  // id -> Group
+function disposeNode(g){ itemsGroup.remove(g); g.traverse(o => o.isMesh && o.geometry.dispose()); }
+function buildItem(item){
+  const T = TYPES[item.type]; if (!T) return;
+  const old = nodes.get(item.id); if (old) disposeNode(old);
+  const g = new THREE.Group(); g.userData.itemId = item.id; T.build(item, g);
+  g.position.set(item.x, T.wall ? P(item, 'mountY', T.defMount) : 0, item.z); g.rotation.y = item.rot || 0;
+  itemsGroup.add(g); nodes.set(item.id, g);
+}
+function rebuildItems(){ nodes.forEach(disposeNode); nodes.clear(); state.items.forEach(buildItem); updateColliders(); }
+function syncNode(item){ const g = nodes.get(item.id); if (!g) return; g.position.x = item.x; g.position.z = item.z; g.rotation.y = item.rot || 0; }
+function rebuildAll(){ buildRoom(); rebuildItems(); select(state.items.find(i => i.id === selId) ? selId : null, true); renderLookPane(); renderRoomPane(); }
+
+function footprint(item){ const [w, d] = TYPES[item.type].size(item), c = Math.abs(Math.cos(item.rot||0)), s = Math.abs(Math.sin(item.rot||0)); return [ (c*w + s*d)/2, (s*w + c*d)/2 ]; }
+let colliders = [];
+function updateColliders(){ colliders = state.items.filter(i => !TYPES[i.type].wall).map(i => { const [hx, hz] = footprint(i); return { x0:i.x-hx, x1:i.x+hx, z0:i.z-hz, z1:i.z+hz }; }); }
+
+/* ===================== selection & editing ===================== */
+let selId = null, selBox = null;
+const dimLabel = document.getElementById('dimlabel');
+function select(id, quiet){
+  selId = id;
+  if (selBox){ scene.remove(selBox); selBox.geometry.dispose(); selBox = null; }
+  if (id && nodes.get(id)){ selBox = new THREE.BoxHelper(nodes.get(id), 0x2563eb); selBox.material.depthTest = false; selBox.renderOrder = 10; scene.add(selBox); }
+  renderItemPane(); if (id && !quiet) showTab('item');
+}
+const getItem = id => state.items.find(i => i.id === id);
+function snapSize(){ return parseFloat(document.getElementById('snapSize').value); }
+const snapOn = () => document.getElementById('snapTog').checked;
+function placeItem(item, x, z, noSnap){
+  const T = TYPES[item.type], { w, l } = state.room, sn = (snapOn() && !noSnap) ? snapSize() : 0;
+  const q = v => sn ? Math.round(v/sn)*sn : v;
+  if (T.wall){
+    const d = { front:z + l/2, back:l/2 - z, left:x + w/2, right:w/2 - x }; const wall = Object.keys(d).reduce((a, b) => d[a] < d[b] ? a : b);
+    const half = T.size(item)[0]/2, lim = (L, v) => Math.max(-L/2 + half, Math.min(L/2 - half, q(v)));
+    if (wall === 'front'){ item.x = lim(w, x); item.z = -l/2; item.rot = 0; }
+    if (wall === 'back'){ item.x = lim(w, x); item.z = l/2; item.rot = Math.PI; }
+    if (wall === 'left'){ item.z = lim(l, z); item.x = -w/2; item.rot = Math.PI/2; }
+    if (wall === 'right'){ item.z = lim(l, z); item.x = w/2; item.rot = -Math.PI/2; }
+    return;
+  }
+  const [hx, hz] = footprint(item);
+  item.x = Math.max(-w/2 + hx, Math.min(w/2 - hx, q(x))); item.z = Math.max(-l/2 + hz, Math.min(l/2 - hz, q(z)));
+}
+function afterChange(item, rebuild){ if (rebuild) buildItem(item); else syncNode(item); updateColliders(); select(selId, true); save(); }
+function rotateSel(deg){ const it = getItem(selId); if (!it) return; if (TYPES[it.type].wall) return toast('Wall items face the wall they are on. Drag to another wall.');
+  pushUndo(); it.rot = ((it.rot || 0) + deg*Math.PI/180) % (Math.PI*2); placeItem(it, it.x, it.z, true); afterChange(it); }
+function deleteSel(){ if (!selId) return; pushUndo(); const g = nodes.get(selId); if (g){ disposeNode(g); nodes.delete(selId); } state.items = state.items.filter(i => i.id !== selId); select(null); updateColliders(); save(); }
+function duplicateSel(){ const it = getItem(selId); if (!it) return; pushUndo(); const c = structuredClone(it); c.id = uid(); placeItem(c, it.x + 0.3, it.z + 0.3); state.items.push(c); buildItem(c); updateColliders(); select(c.id); save(); }
+function addItem(type){ pushUndo(); const T = TYPES[type]; const it = { id:uid(), type, x:0, z:0, rot:0 };
+  if (T.wall){ it.props = { mountY:T.defMount }; placeItem(it, 0, -state.room.l/2); } else placeItem(it, 0, 0);
+  if (type === 'desk') it.props = { height:0.74 };
+  state.items.push(it); buildItem(it); updateColliders(); select(it.id, true); save(); toast(`${T.label} added. Open the Item tab to adjust it`); }
+
+/* ===================== camera modes ===================== */
+let mode = 'orbit';
+const walk = { x:0, z:2.3, yaw:0, pitch:-0.05, eye:1.6, keys:{}, joy:{ x:0, y:0 } };
+function setMode(m){
+  mode = m; document.querySelectorAll('#modes button').forEach(b => b.classList.toggle('on', b.dataset.mode === m));
+  const { w, l, h } = state.room;
+  if (m === 'walk'){ controls.enabled = false; camera.fov = 70; }
+  else { controls.enabled = true; camera.fov = m === 'top' ? 30 : 50; controls.target.set(0, m === 'top' ? 0 : 0.6, 0); }
+  if (m === 'orbit'){ controls.minPolarAngle = 0; controls.maxPolarAngle = Math.PI/2 - 0.03; camera.position.set(w*1.25, h*1.95, l*0.78); }
+  if (m === 'top'){ controls.minPolarAngle = 0; controls.maxPolarAngle = 0.0001; const asp = visW()/innerHeight, t = Math.tan(THREE.MathUtils.degToRad(15));
+    const along = asp > 1 ? (w/2 + 0.7) : (l/2 + 0.7), across = asp > 1 ? (l/2 + 0.7) : (w/2 + 0.7); const dist = Math.max(along/t, across/(t*asp)) + h;
+    if (asp > 1) camera.position.set(-0.0001, dist, 0); else camera.position.set(0, dist, 0.0001); }
+  updateFrame(); if (m !== 'walk') controls.update();
+  document.getElementById('joy').style.display = (m === 'walk' && matchMedia('(pointer:coarse)').matches) ? 'block' : 'none';
+  updateHint(); updateGridVis();
+}
+const editOn = () => document.getElementById('editTog').checked;
+function updateGridVis(){ if (grid) grid.visible = editOn() && mode !== 'walk'; }
+function updateHint(){
+  const e = editOn(), coarse = matchMedia('(pointer:coarse)').matches; let t = '';
+  if (mode === 'walk') t = (coarse ? '<b>Walk</b>: joystick to move, drag to look around 360°.' : '<b>Walk</b>: WASD / arrows to move, drag to look 360°, Shift = faster, scroll = zoom.') + (e ? ' Tap a piece to select it, then drag it to move.' : '');
+  else t = `<b>${mode === 'top' ? 'Top view' : '3D view'}</b>: drag to ${mode === 'top' ? 'rotate' : 'orbit'}, ${coarse ? 'pinch' : 'scroll'} to zoom, ${coarse ? 'two fingers' : 'right-drag'} to pan.`;
+  if (mode !== 'walk') t += e ? ' <b>Edit on</b>: tap furniture to select, drag to move, R to rotate.' : ' Turn on ✏️ Edit to move furniture.';
+  else if (!e) t += ' Turn on ✏️ Edit to select furniture.';
+  document.getElementById('hint').innerHTML = t;
+}
+
+// keep the room centred in the area not covered by the side panel
+const panelW = () => (!document.getElementById('panel').classList.contains('hidden') && innerWidth > 820) ? 330 : 0;
+const visW = () => innerWidth - panelW();
+function updateFrame(){ const pw = panelW(), W = innerWidth, H = innerHeight; camera.aspect = (W + pw)/H;
+  if (pw) camera.setViewOffset(W + pw, H, pw, 0, W, H); else camera.clearViewOffset(); camera.updateProjectionMatrix(); }
+
+/* ===================== pointer input ===================== */
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+let drag = null, look = null;
+function setNdc(e){ const r = renderer.domElement.getBoundingClientRect(); ndc.set(((e.clientX - r.left)/r.width)*2 - 1, -((e.clientY - r.top)/r.height)*2 + 1); ray.setFromCamera(ndc, camera); }
+function pickItem(){ const hits = ray.intersectObjects(itemsGroup.children, true); for (const h of hits){ let o = h.object; while (o && !o.userData.itemId) o = o.parent; if (o) return o.userData.itemId; } return null; }
+function floorPoint(){ const p = new THREE.Vector3(); return ray.ray.intersectPlane(floorPlane, p) ? p : null; }
+const pointers = new Set();
+// capture phase on the container so we run before OrbitControls' own listener on the canvas
+view.addEventListener('pointerdown', e => {
+  pointers.add(e.pointerId);
+  if (pointers.size > 1){ if (drag){ drag = null; controls.enabled = mode !== 'walk'; } look = null; return; }
+  setNdc(e); const id = editOn() ? pickItem() : null;
+  // Walk mode: dragging looks around; tap selects, and only an already-selected piece can be dragged.
+  if (id && (mode !== 'walk' || id === selId)){ const it = getItem(id), p = floorPoint(); select(id);
+    if (p){ drag = { id, ox:it.x - p.x, oz:it.z - p.z, moved:false, sx:e.clientX, sy:e.clientY, undo:JSON.stringify(state) }; controls.enabled = false; }
+    return; }
+  look = { id:e.pointerId, x:e.clientX, y:e.clientY, sx:e.clientX, sy:e.clientY, orbit:mode !== 'walk', tapId:id };
+}, true);
+addEventListener('pointermove', e => {
+  if (drag){ setNdc(e); const p = floorPoint(); if (!p) return; if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 4) return;
+    drag.moved = true; const it = getItem(drag.id); placeItem(it, p.x + drag.ox, p.z + drag.oz); syncNode(it); renderItemPane(true); return; }
+  if (look && !look.orbit && e.pointerId === look.id){ const k = 0.0042 * (camera.fov/70); walk.yaw -= (e.clientX - look.x)*k; walk.pitch -= (e.clientY - look.y)*k; walk.pitch = Math.max(-1.45, Math.min(1.45, walk.pitch)); look.x = e.clientX; look.y = e.clientY; }
+});
+addEventListener('pointerup', e => {
+  pointers.delete(e.pointerId);
+  if (drag){ if (drag.moved){ undoStack.push(drag.undo); if (undoStack.length > 60) undoStack.shift(); updateColliders(); save(); } drag = null; controls.enabled = mode !== 'walk'; return; }
+  if (look && e.pointerId === look.id){ if (Math.hypot(e.clientX - look.sx, e.clientY - look.sy) < 5 && editOn()){ if (look.tapId) select(look.tapId); else if (selId) select(null); } look = null; }
+});
+addEventListener('pointercancel', e => { pointers.delete(e.pointerId); drag = null; look = null; controls.enabled = mode !== 'walk'; });
+renderer.domElement.addEventListener('wheel', e => { if (mode !== 'walk') return; camera.fov = Math.max(35, Math.min(95, camera.fov + e.deltaY*0.03)); camera.updateProjectionMatrix(); e.preventDefault(); }, { passive:false });
+
+// on-screen joystick (iPad / touch)
+const joy = document.getElementById('joy'), knob = joy.querySelector('.knob'); let joyId = null;
+joy.addEventListener('pointerdown', e => { joyId = e.pointerId; joy.setPointerCapture(e.pointerId); joyMove(e); e.stopPropagation(); });
+joy.addEventListener('pointermove', e => { if (e.pointerId === joyId) joyMove(e); });
+const joyEnd = e => { if (e.pointerId !== joyId) return; joyId = null; walk.joy.x = walk.joy.y = 0; knob.style.transform = ''; };
+joy.addEventListener('pointerup', joyEnd); joy.addEventListener('pointercancel', joyEnd);
+function joyMove(e){ const r = joy.getBoundingClientRect(), R = r.width/2; let dx = e.clientX - r.left - R, dy = e.clientY - r.top - R; const m = Math.hypot(dx, dy); if (m > R - 20){ dx *= (R - 20)/m; dy *= (R - 20)/m; }
+  knob.style.transform = `translate(${dx}px,${dy}px)`; walk.joy.x = dx/(R - 20); walk.joy.y = dy/(R - 20); }
+
+// keyboard
+addEventListener('keydown', e => {
+  const ae = document.activeElement; if (ae && /INPUT|SELECT|TEXTAREA/.test(ae.tagName) && ae.type !== 'checkbox' && ae.type !== 'range') return;
+  const k = e.key.toLowerCase(), mod = e.metaKey || e.ctrlKey;
+  if (mod && k === 'z'){ e.preventDefault(); return undo(); }
+  if (mod && k === 'd'){ e.preventDefault(); return duplicateSel(); }
+  if (mode === 'walk'){ walk.keys[k] = true; if (k.startsWith('arrow') || k === ' ') e.preventDefault(); }
+  if (k === 'r' && selId && !mod){ rotateSel(e.shiftKey ? 15 : 90); }
+  if ((k === 'delete' || k === 'backspace') && selId){ e.preventDefault(); deleteSel(); }
+  if (k === 'escape') select(null);
+  if (mode !== 'walk' && selId && k.startsWith('arrow')){ e.preventDefault(); const it = getItem(selId), st = e.shiftKey ? 0.01 : (snapOn() ? snapSize() : 0.05);
+    pushUndo(); const d = { arrowleft:[-st, 0], arrowright:[st, 0], arrowup:[0, -st], arrowdown:[0, st] }[k];
+    placeItem(it, it.x + d[0], it.z + d[1], e.shiftKey); afterChange(it); }
+});
+addEventListener('keyup', e => { walk.keys[e.key.toLowerCase()] = false; });
+addEventListener('blur', () => { walk.keys = {}; });
+
+/* ===================== walk physics ===================== */
+const R_PLAYER = 0.22;
+function blocked(x, z, cx, cz){ const { w, l } = state.room; if (Math.abs(x) > w/2 - R_PLAYER || Math.abs(z) > l/2 - R_PLAYER) return true;
+  for (const c of colliders){ const r = R_PLAYER; if (!(x > c.x0 - r && x < c.x1 + r && z > c.z0 - r && z < c.z1 + r)) continue;
+    if (!(cx > c.x0 - r && cx < c.x1 + r && cz > c.z0 - r && cz < c.z1 + r)) return true; }   // can always walk out of something you're already inside
+  return false; }
+function stepWalk(dt){
+  const K = walk.keys; let f = (K.w || K.arrowup ? 1 : 0) - (K.s || K.arrowdown ? 1 : 0), s = (K.d || K.arrowright ? 1 : 0) - (K.a || K.arrowleft ? 1 : 0);
+  f -= walk.joy.y; s += walk.joy.x; const m = Math.hypot(f, s); if (m > 1){ f /= m; s /= m; }
+  const sp = (K.shift ? 2.8 : 1.4) * dt, sy = Math.sin(walk.yaw), cy = Math.cos(walk.yaw);
+  const dx = (-sy*f + cy*s)*sp, dz = (-cy*f - sy*s)*sp;
+  if (dx && !blocked(walk.x + dx, walk.z, walk.x, walk.z)) walk.x += dx;
+  if (dz && !blocked(walk.x, walk.z + dz, walk.x, walk.z)) walk.z += dz;
+  const { w, l } = state.room; walk.x = Math.max(-w/2 + R_PLAYER, Math.min(w/2 - R_PLAYER, walk.x)); walk.z = Math.max(-l/2 + R_PLAYER, Math.min(l/2 - R_PLAYER, walk.z));
+  camera.position.set(walk.x, walk.eye, walk.z); camera.rotation.set(walk.pitch, walk.yaw, 0);
+}
+
+/* ===================== UI panes ===================== */
+const $ = id => document.getElementById(id);
+function showTab(t){ document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t)); document.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.id === 'pane-' + t)); }
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+for (const [k, T] of Object.entries(TYPES)){ const b = document.createElement('button'); b.className = 'add'; b.innerHTML = `<span>${T.icon}</span>${T.label.replace(' (Herman Miller style)', '')}`; b.onclick = () => addItem(k); $(T.group === 'core' ? 'addCore' : 'addExtra').appendChild(b); }
+const cm = v => Math.round(v*100);
+function renderItemPane(light){
+  const it = getItem(selId), el = $('pane-item');
+  if (!it){ el.dataset.id = ''; el.innerHTML = `<p class="muted">Nothing selected. With ✏️ Edit on, tap a piece of furniture to select it.</p><h4>In the room</h4>${countsHtml()}`; return; }
+  const T = TYPES[it.type], [w, d, h] = T.size(it), { w:W, l:L } = state.room;
+  const posTxt = `${(it.x + W/2).toFixed(2)} m from left wall · ${(it.z + L/2).toFixed(2)} m from front wall`;
+  if (light && el.dataset.id === it.id){ const p = el.querySelector('.pos'); if (p) p.textContent = posTxt; return; }
+  el.dataset.id = it.id;
+  let html = `<h4>${T.icon} ${T.label}</h4><div class="dims">${cm(w)} × ${cm(d)} × ${cm(h)} cm</div><div class="muted">W × D × H</div><div class="muted pos" style="margin-top:4px">${posTxt}</div>
+  <div class="btnrow"><button class="btn ghost" data-a="rl">⟲ 15°</button><button class="btn ghost" data-a="rr">⟳ 15°</button><button class="btn ghost" data-a="r90">↻ 90°</button></div>
+  <div class="btnrow"><button class="btn ghost" data-a="dup">⧉ Duplicate</button><button class="btn ghost warn" data-a="del">🗑 Delete</button></div>`;
+  if (it.type === 'desk'){ const H = P(it, 'height', 0.74); html += `<h4>Desk height</h4><div class="row"><input type="range" id="deskH" min="0.65" max="1.25" step="0.01" value="${H}"><span class="val" id="deskHv">${cm(H)} cm</span></div>
+    <div class="btnrow"><button class="btn ghost" data-h="0.74">🪑 Sit 74 cm</button><button class="btn ghost" data-h="1.1">🧍 Stand 110 cm</button></div>`; }
+  if (it.type === 'table'){ html += `<h4>Table size</h4><div class="row"><label>Width</label><input type="range" id="tw" min="0.6" max="1.8" step="0.05" value="${P(it,'w',1.2)}"><span class="val" id="twv">${cm(P(it,'w',1.2))} cm</span></div>
+    <div class="row"><label>Depth</label><input type="range" id="td" min="0.4" max="0.9" step="0.05" value="${P(it,'d',0.5)}"><span class="val" id="tdv">${cm(P(it,'d',0.5))} cm</span></div>`; }
+  if (T.wall){ const y = P(it, 'mountY', T.defMount); html += `<h4>Mount height (centre)</h4><div class="row"><input type="range" id="my" min="0.6" max="${(state.room.h - h/2 - 0.02).toFixed(2)}" step="0.01" value="${y}"><span class="val" id="myv">${cm(y)} cm</span></div><p class="muted">Drag it near any wall to move it there.</p>`; }
+  if (T.colorKey){ const cur = it.color || state.materials[T.colorKey]; html += `<h4>Colour (this piece only)</h4><div class="row"><input type="color" id="icol" value="${cur}"><button class="btn ghost" id="icolReset">Use room default</button></div>`; }
+  el.innerHTML = html;
+  el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => ({ rl:() => rotateSel(15), rr:() => rotateSel(-15), r90:() => rotateSel(90), dup:duplicateSel, del:deleteSel })[b.dataset.a]());
+  const bindRange = (id, prop, lbl, after) => { const r = $(id); if (!r) return; r.onpointerdown = () => pushUndo();
+    r.oninput = () => { it.props = { ...(it.props || {}), [prop]:parseFloat(r.value) }; $(lbl).textContent = cm(r.value) + ' cm'; if (after) after(); buildItem(it); updateColliders(); select(it.id, true); save(); }; };
+  bindRange('deskH', 'height', 'deskHv'); bindRange('tw', 'w', 'twv', () => placeItem(it, it.x, it.z, true)); bindRange('td', 'd', 'tdv', () => placeItem(it, it.x, it.z, true)); bindRange('my', 'mountY', 'myv');
+  el.querySelectorAll('[data-h]').forEach(b => b.onclick = () => { pushUndo(); it.props = { ...(it.props || {}), height:parseFloat(b.dataset.h) }; buildItem(it); select(it.id, true); save(); });
+  if ($('icol')){ $('icol').onclick = () => pushUndo(); $('icol').oninput = e => { it.color = e.target.value; buildItem(it); if (selBox) selBox.setFromObject(nodes.get(it.id)); save(); };
+    $('icolReset').onclick = () => { pushUndo(); delete it.color; buildItem(it); select(it.id, true); save(); }; }
+}
+function countsHtml(){ const c = {}; state.items.forEach(i => c[i.type] = (c[i.type] || 0) + 1); return '<div class="card">' + Object.entries(c).map(([k, n]) => `${TYPES[k].icon} ${TYPES[k].label}: <b>${n}</b>`).join('<br>') + '</div>'; }
+function renderLookPane(){
+  const m = state.materials; const sw = (key, label, presets) => `<div class="card"><div class="row"><label>${label}</label><input type="color" data-m="${key}" value="${m[key]}"></div>${presets ? `<div class="chips">${presets.map(c => `<button class="chip" data-m="${key}" data-c="${c}" style="background:${c};width:26px;height:22px" title="${c}"></button>`).join('')}</div>` : ''}</div>`;
+  $('pane-look').innerHTML = `<h4>Floor</h4><div class="card"><div class="row"><label>Finish</label><select id="floorType">${['vinyl','tiles','carpet','plain'].map(t => `<option value="${t}" ${m.floorType === t ? 'selected' : ''}>${{ vinyl:'Vinyl planks', tiles:'Tiles', carpet:'Carpet', plain:'Plain' }[t]}</option>`).join('')}</select></div></div>
+   ${sw('floor', 'Floor colour', MATERIAL_PRESETS.floor)}<h4>Walls &amp; ceiling</h4>${sw('walls', 'Walls', MATERIAL_PRESETS.walls)}${sw('ceiling', 'Ceiling')}
+   <h4>Student tables &amp; chairs</h4>${sw('tableTop', 'Table tops', MATERIAL_PRESETS.tableTop)}${sw('tableLegs', 'Table legs')}${sw('chair', 'Chairs', MATERIAL_PRESETS.chair)}
+   <h4>Teacher's station</h4>${sw('deskTop', 'Desk top')}${sw('deskFrame', 'Desk frame / cabinet')}${sw('teacherChair', 'Teacher chair')}
+   <h4>Extras</h4>${sw('fabric', 'Sofa fabric')}
+   <h4>Lighting</h4><div class="row"><label>Brightness</label><input type="range" id="lightR" min="0.3" max="2" step="0.05" value="${state.room.light}"></div>`;
+  $('pane-look').querySelectorAll('input[type=color][data-m]').forEach(inp => { inp.onclick = () => pushUndo(); inp.oninput = () => { m[inp.dataset.m] = inp.value; applyMaterials(); save(); }; });
+  $('pane-look').querySelectorAll('.chip[data-m]').forEach(b => b.onclick = () => { pushUndo(); m[b.dataset.m] = b.dataset.c; applyMaterials(); save(); renderLookPane(); });
+  $('floorType').onchange = e => { pushUndo(); m.floorType = e.target.value; applyMaterials(); save(); };
+  $('lightR').onpointerdown = () => pushUndo(); $('lightR').oninput = e => { state.room.light = parseFloat(e.target.value); ceilingLights.forEach(l => l.intensity = 6*state.room.light); hemi.intensity = 0.5*state.room.light; save(); };
+}
+function renderRoomPane(){
+  const r = state.room, wl = { front:'Front (TV wall)', back:'Back', left:'Left', right:'Right' };
+  let html = `<h4>Room size (m)</h4><div class="row"><label>Width</label><input type="number" step="0.1" min="2" max="12" id="rw" value="${r.w}"></div>
+   <div class="row"><label>Length</label><input type="number" step="0.1" min="2" max="15" id="rl" value="${r.l}"></div>
+   <div class="row"><label>Ceiling height</label><input type="number" step="0.05" min="2.2" max="4" id="rh" value="${r.h}"></div>
+   <h4>Doors &amp; windows</h4><div class="btnrow"><button class="btn ghost" id="swapGlass">⇄ Move glass to the other long wall</button></div>`;
+  for (const o of r.openings){ const L = wallInfo(o.wall).len, lim = (L - o.width)/2;
+    html += `<div class="card" data-o="${o.id}"><b>${o.name}</b><div class="row"><label>Wall</label><select data-k="wall">${WALLS.map(wn => `<option value="${wn}" ${o.wall === wn ? 'selected' : ''}>${wl[wn]}</option>`).join('')}</select></div>
+     <div class="row"><label>Position</label><input type="range" data-k="pos" min="${(-lim).toFixed(2)}" max="${lim.toFixed(2)}" step="0.05" value="${o.pos}"></div>
+     <div class="row"><label>Width (m)</label><input type="number" data-k="width" step="0.05" min="0.5" max="${L}" value="${o.width}"></div>
+     <div class="row"><label>Height (m)</label><input type="number" data-k="height" step="0.05" min="0.4" max="${r.h}" value="${o.height}"></div>
+     ${o.kind === 'window' ? `<div class="row"><label>Sill height (m)</label><input type="number" data-k="sill" step="0.05" min="0" max="2" value="${o.sill}"></div>` : ''}</div>`; }
+  html += `<p class="muted">Front = TV wall, back = the opposite short wall. Left/right are as seen standing at the back, facing the TV.</p>`;
+  $('pane-room').innerHTML = html;
+  const dimCh = () => { pushUndo(); r.w = clampN($('rw').value, 2, 12, r.w); r.l = clampN($('rl').value, 2, 15, r.l); r.h = clampN($('rh').value, 2.2, 4, r.h);
+    r.openings.forEach(fixOpening); state.items.forEach(i => placeItem(i, i.x, i.z, true)); rebuildAll(); save(); };
+  ['rw','rl','rh'].forEach(id => $(id).onchange = dimCh);
+  $('swapGlass').onclick = () => { pushUndo(); r.openings.forEach(o => { if (o.kind !== 'door' && (o.wall === 'left' || o.wall === 'right')) o.wall = o.wall === 'left' ? 'right' : 'left'; }); buildRoom(); renderRoomPane(); save(); };
+  $('pane-room').querySelectorAll('[data-o]').forEach(card => { const o = r.openings.find(x => x.id === card.dataset.o);
+    card.querySelectorAll('[data-k]').forEach(inp => { const k = inp.dataset.k; inp.onpointerdown = () => pushUndo();
+      const apply = () => { o[k] = k === 'wall' ? inp.value : parseFloat(inp.value); fixOpening(o); buildRoom(); save(); if (k !== 'pos') renderRoomPane(); };
+      if (k === 'pos') inp.oninput = apply; else inp.onchange = apply; }); });
+}
+function clampN(v, a, b, d){ v = parseFloat(v); return isFinite(v) ? Math.max(a, Math.min(b, v)) : d; }
+function fixOpening(o){ const L = wallInfo(o.wall).len; o.width = Math.min(o.width, L - 0.1); const lim = (L - o.width)/2; o.pos = Math.max(-lim, Math.min(lim, o.pos)); o.height = Math.min(o.height, state.room.h - (o.sill || 0) - 0.05); }
+
+$('modes').querySelectorAll('button').forEach(b => b.onclick = () => setMode(b.dataset.mode));
+$('editTog').onchange = () => { if (!editOn()) select(null); updateHint(); updateGridVis(); };
+$('snapTog').onchange = updateGridVis; $('snapSize').onchange = () => buildRoom();
+$('undoBtn').onclick = undo;
+$('panelBtn').onclick = () => { $('panel').classList.toggle('hidden'); updateFrame(); };
+$('exportBtn').onclick = () => { const blob = new Blob([JSON.stringify(state, null, 2)], { type:'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'tuition-room-layout.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); toast('Layout exported'); };
+$('importBtn').onclick = () => $('importFile').click();
+$('importFile').onchange = async e => { const f = e.target.files[0]; if (!f) return; try{ const s = JSON.parse(await f.text()); if (!validState(s)) throw 0; pushUndo();
+  s.materials = { ...DEFAULT_MATERIALS, ...s.materials }; s.items = s.items.filter(i => TYPES[i.type]); state = s; rebuildAll(); save(); toast('Layout imported'); }catch{ toast('That file is not a room layout'); } e.target.value = ''; };
+$('resetBtn').onclick = () => { if (!confirm('Reset to the default layout? (You can undo.)')) return; pushUndo(); state = defaultState(); rebuildAll(); setMode(mode); save(); toast('Reset to default'); };
+$('shotBtn').onclick = () => { renderer.render(scene, camera); const a = document.createElement('a'); a.href = renderer.domElement.toDataURL('image/png'); a.download = 'tuition-room.png'; a.click(); };
+let toastT; function toast(t){ const el = $('toast'); el.textContent = t; el.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => el.style.opacity = 0, 1600); }
+
+/* ===================== labels & loop ===================== */
+const v3 = new THREE.Vector3();
+function placeLabel(el, x, y, z, show){ if (!show){ el.style.display = 'none'; return; } v3.set(x, y, z).project(camera); if (v3.z > 1 || v3.z < -1){ el.style.display = 'none'; return; }
+  el.style.display = 'block'; el.style.left = ((v3.x + 1)/2*innerWidth) + 'px'; el.style.top = ((1 - v3.y)/2*innerHeight) + 'px'; }
+function updateLabels(){
+  const { w, l } = state.room, ow = mode !== 'walk';
+  $('lblW').textContent = `${w.toFixed(2)} m`; $('lblL').textContent = `${l.toFixed(2)} m`;
+  const sx = camera.position.x >= 0 ? 1 : -1, sz = camera.position.z >= 0 ? 1 : -1;
+  placeLabel($('lblW'), 0, 0, sz*(l/2 + 0.3), ow); placeLabel($('lblL'), sx*(w/2 + 0.35), 0, 0, ow); placeLabel($('lblF'), 0, 0, -l/2 - 0.3, ow);
+  const it = getItem(selId);
+  if (it){ const T = TYPES[it.type], [sw, sd, sh] = T.size(it), y = T.wall ? P(it, 'mountY', T.defMount) + sh/2 : sh; dimLabel.textContent = `${cm(sw)} × ${cm(sd)} × ${cm(sh)} cm`; placeLabel(dimLabel, it.x, y + 0.05, it.z, true); }
+  else dimLabel.style.display = 'none';
+}
+const clock = new THREE.Clock();
+function loop(){ const dt = Math.min(0.1, clock.getDelta()); if (mode === 'walk') stepWalk(dt); else controls.update(); if (ceilGroup) ceilGroup.visible = camera.position.y < state.room.h; if (selBox) selBox.update(); updateLabels(); renderer.render(scene, camera); requestAnimationFrame(loop); }
+addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); updateFrame(); });
+
+if (matchMedia('(max-width:700px)').matches) $('panel').classList.add('hidden');
+rebuildAll(); setMode('orbit');
+$('loading').remove(); loop();
+window.app = { _proj:(x,y,z)=>{ const v=new THREE.Vector3(x,y,z).project(camera); return [(v.x+1)/2*innerWidth,(1-v.y)/2*innerHeight]; }, state:() => state, setMode, select, addItem, TYPES, walk, get mode(){ return mode; } };
+</script>
+</body>
+</html>
